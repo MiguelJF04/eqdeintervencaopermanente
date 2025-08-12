@@ -77,6 +77,7 @@
           <li class="nav-item"><a class="nav-link" href="#" data-view="home">Início</a></li>
           <li class="nav-item"><a class="nav-link" href="#" data-view="viaturas">Ver Viaturas</a></li>
           <li class="nav-item"><a class="nav-link" href="#" data-view="aricas">Ver ARICAS</a></li>
+          <li class="nav-item"><a class="nav-link" href="#" data-view="planeamento">Planeamento</a></li>
           <li class="nav-item"><button id="btnPrint" class="btn btn-sm btn-secondary ms-lg-3 no-print">Imprimir</button></li>
         </ul>
       </div>
@@ -145,6 +146,8 @@
         <div class="d-flex gap-2">
           <button id="btnAddFerramenta" class="btn btn-primary">Adicionar Ferramenta</button>
           <button id="btnExportFerramentas" class="btn btn-outline-secondary">Exportar Excel</button>
+          <button id="btnToggleGroupFerr" class="btn btn-outline-secondary">Agrupar</button>
+
         </div>
       </div>
 
@@ -189,14 +192,16 @@
   <div class="table-responsive">
     <table class="table align-middle mb-0">
       <thead class="table-light">
-        <tr>
-          <th style="width: 140px;">Data</th>
-          <th style="width: 120px;">Kms</th>
-          <th style="width: 120px;">Limpo</th>
-          <th>Observações</th>
-          <th style="width: 160px;">Ações</th>
-        </tr>
-      </thead>
+  <tr>
+    <th style="width: 140px;">Data</th>
+    <th style="width: 120px;">Kms</th>
+    <th style="width: 120px;">Limpo</th>
+    <th style="width: 120px;">Equipa</th> <!-- NOVO -->
+    <th style="width: 170px;">Ferr.</th>
+    <th>Observações</th>
+    <th style="width: 160px;">Ações</th>
+  </tr>
+</thead>
       <tbody id="tbodyChecklists"></tbody>
     </table>
   </div>
@@ -225,19 +230,48 @@
     <th>Localização</th>
     <th class="d-none d-md-table-cell" style="width:170px;">Prova hidráulica</th>
     <th class="d-none d-md-table-cell" style="width:170px;">Validade</th>
-    <th style="width:150px;">Planeamento</th>
-    <th class="d-none d-lg-table-cell" style="min-width:220px;">Observações</th>
     <th style="width:150px;">Estado</th>
     <th style="width:140px;">BAR</th>
     <th style="width:160px;">Ações</th>
   </tr>
 </thead>
 
+
             <tbody id="tbodyAricas"></tbody>
           </table>
         </div>
       </div>
     </section>
+
+    <!-- ===================== PLANEAMENTO ===================== -->
+<section id="view-planeamento" class="d-none">
+  <!-- ===== Barra de ações ===== -->
+  <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-2 mb-3">
+    <h2 class="h4 mb-0">Planeamento</h2>
+    <div class="d-flex gap-2">
+      <input id="searchPlaneamento" class="form-control" type="search" placeholder="Pesquisar observações…" style="max-width: 280px;" />
+      <button id="btnAddPlano" class="btn btn-primary">Adicionar</button>
+      <button id="btnExportPlaneamento" class="btn btn-outline-secondary">Exportar Excel</button>
+    </div>
+  </div>
+
+  <div class="soft-card p-0">
+    <div class="table-responsive">
+      <table class="table align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th style="width: 42px;">#</th>
+            <th>Observação</th>
+            <th style="width: 180px;">Estado</th>
+            <th style="width: 180px;">Ações</th>
+          </tr>
+        </thead>
+        <tbody id="tbodyPlaneamento"></tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
 
     <!-- ===================== ÁREA DE IMPRESSÃO ===================== -->
     <section id="print-section" class="d-none"></section>
@@ -302,9 +336,13 @@
         { id: cryptoRandom(), nome: 'VTU 03', tipo: 'ligeira', matricula: 'CC-22-CC', estado: 'inoperacional', ferramentas: [], checklists: []  }
       ],
       aricas: [
-  { id: cryptoRandom(), nome: 'ARICA Norte', local: 'Parque A', estado: 'operacional', bar: '', provaH: '', validade: '', obs: '', planStatus: 'por_realizar' },
-  { id: cryptoRandom(), nome: 'ARICA Sul',   local: 'Parque B', estado: 'operacional', bar: '', provaH: '', validade: '', obs: '', planStatus: 'por_realizar' }
+  { id: cryptoRandom(), nome: 'ARICA Norte', local: 'Parque A', estado: 'operacional', bar: '', provaH: '', validade: '' },
+  { id: cryptoRandom(), nome: 'ARICA Sul',   local: 'Parque B', estado: 'operacional', bar: '', provaH: '', validade: '' }
+],
+      planeamento: [
+  { id: cryptoRandom(), texto: 'Verificação mensal dos extintores', estado: 'por_realizar', createdAt: Date.now() }
 ]
+
 
     };
 
@@ -313,6 +351,7 @@
     function cryptoRandom() { return Math.random().toString(36).slice(2) + Date.now().toString(36); }
 
     let DB = loadDB();
+    if (!DB.planeamento) DB.planeamento = [];
 
     // =============================================================
     // ===================== NAVEGAÇÃO ENTRE VISTAS =================
@@ -323,6 +362,7 @@
       viatura: document.getElementById('view-viatura'),
       aricas: document.getElementById('view-aricas'),
       print: document.getElementById('print-section'),
+      planeamento: document.getElementById('view-planeamento'),
     };
 
     document.querySelectorAll('[data-view]').forEach(el => {
@@ -340,6 +380,7 @@
       if (name === 'viaturas') renderViaturas();
       if (name === 'aricas') renderAricas();
       if (name === 'home') renderKPIs();
+      if (name === 'planeamento') renderPlaneamento();
     }
 
     // =============================================================
@@ -374,6 +415,16 @@
     // =============================================================
     const gridViaturas = document.getElementById('gridViaturas');
     const searchViaturas = document.getElementById('searchViaturas');
+
+    // ===== Planeamento – refs
+const tbodyPlaneamento = document.getElementById('tbodyPlaneamento');
+const searchPlaneamento = document.getElementById('searchPlaneamento');
+
+if (searchPlaneamento) {
+  searchPlaneamento.addEventListener('input', () => renderPlaneamento());
+}
+document.getElementById('btnAddPlano').addEventListener('click', () => openFormPlano());
+
 
     searchViaturas.addEventListener('input', () => renderViaturas());
 
@@ -477,6 +528,7 @@ function todayISO() {
     let viaturaAtual = null;
 
     function openViatura(v) {
+      document.getElementById('btnToggleGroupFerr').textContent = ferrGrouped ? 'Desagrupar' : 'Agrupar';
       viaturaAtual = v;
       detalheTitulo.textContent = v.nome;
       detalheMeta.textContent = `${v.tipo} • ${v.matricula || '—'}`;
@@ -510,12 +562,98 @@ function todayISO() {
     });
 
     function renderFerramentas() {
-      tbodyFerramentas.innerHTML = '';
-      (viaturaAtual.ferramentas || []).forEach((f, i) => {
+  tbodyFerramentas.innerHTML = '';
+
+  // modo não agrupado: usa a tua lista antiga
+  if (!ferrGrouped) {
+    (viaturaAtual.ferramentas || []).forEach((f, i) => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${i + 1}</td>
+        <td>${f.nome}</td>
+        <td>
+          <div class="input-group input-group-sm" style="max-width: 140px;">
+            <button class="btn btn-outline-secondary" data-fact="dec" data-id="${f.id}">−</button>
+            <input class="form-control text-center" data-fact="qtd" data-id="${f.id}" type="number" min="0" value="${f.qtd}">
+            <button class="btn btn-outline-secondary" data-fact="inc" data-id="${f.id}">+</button>
+          </div>
+        </td>
+        <td>
+          <div class="btn-group btn-group-sm" role="group">
+            <button class="btn ${f.estado==='ok' ? 'btn-success' : 'btn-outline-success'}" data-fact="estado" data-value="ok" data-id="${f.id}">OK</button>
+            <button class="btn ${f.estado==='falta' ? 'btn-danger' : 'btn-outline-danger'}" data-fact="estado" data-value="falta" data-id="${f.id}">Falta</button>
+            <button class="btn ${f.estado==='danificado' ? 'btn-warning' : 'btn-outline-warning'}" data-fact="estado" data-value="danificado" data-id="${f.id}">Danificado</button>
+          </div>
+        </td>
+        <td>
+          <div class="d-flex gap-2">
+            <button class="btn btn-outline-secondary btn-sm" data-fact="edit" data-id="${f.id}">Editar</button>
+            <button class="btn btn-outline-danger btn-sm" data-fact="del" data-id="${f.id}">Remover</button>
+          </div>
+        </td>`;
+      tbodyFerramentas.appendChild(tr);
+    });
+
+    // eventos (mesmos de antes)
+    tbodyFerramentas.querySelectorAll('[data-fact]').forEach(b => b.addEventListener('click', handleFerramentaAction));
+    tbodyFerramentas.querySelectorAll('input[data-fact="qtd"]').forEach(inp => {
+      inp.addEventListener('change', (e) => {
+        const id = e.target.dataset.id;
+        const f = viaturaAtual.ferramentas.find(x => x.id === id);
+        f.qtd = Math.max(0, parseInt(e.target.value || '0', 10));
+        saveDB();
+      });
+    });
+    return;
+  }
+
+  // ===== modo AGRUPADO =====
+  // 1) agrega por nome
+  const map = {};
+  (viaturaAtual.ferramentas || []).forEach(f => {
+    const key = (f.nome || '(sem nome)').trim();
+    const g = map[key] || (map[key] = { nome: key, items: [], ok: 0, falta: 0, danificado: 0, total: 0 });
+    g.items.push(f);
+    const q = Number(f.qtd) || 0;
+    g.total += q;
+    if (f.estado === 'ok') g.ok += q;
+    else if (f.estado === 'falta') g.falta += q;
+    else if (f.estado === 'danificado') g.danificado += q;
+  });
+  const groups = Object.values(map).sort((a, b) => a.nome.localeCompare(b.nome));
+
+  let counter = 0;
+  groups.forEach(g => {
+    const opened = expandedFerrGroups.has(g.nome);
+
+    // linha de grupo (resumo)
+    const trHead = document.createElement('tr');
+    trHead.className = 'table-active';
+    trHead.innerHTML = `
+      <td colspan="5">
+        <div class="d-flex align-items-center justify-content-between">
+          <div class="d-flex align-items-center gap-3">
+            <button class="btn btn-sm btn-outline-secondary" data-group-toggle="${g.nome}">${opened ? '−' : '+'}</button>
+            <strong>${g.nome}</strong>
+            <span class="badge bg-success">OK ${g.ok}</span>
+            <span class="badge bg-danger ms-1">Falta ${g.falta}</span>
+            <span class="badge bg-warning text-dark ms-1">Danificado ${g.danificado}</span>
+            <span class="text-secondary ms-2">Total ${g.total}</span>
+          </div>
+          <div class="d-flex gap-2">
+            <button class="btn btn-sm btn-outline-primary" data-group-add="${g.nome}">Adicionar</button>
+          </div>
+        </div>
+      </td>`;
+    tbodyFerramentas.appendChild(trHead);
+
+    // linhas internas (itens do grupo)
+    if (opened) {
+      g.items.forEach((f) => {
         const tr = document.createElement('tr');
         tr.innerHTML = `
-          <td>${i + 1}</td>
-          <td>${f.nome}</td>
+          <td>${++counter}</td>
+          <td class="text-secondary">${f.nome}</td>
           <td>
             <div class="input-group input-group-sm" style="max-width: 140px;">
               <button class="btn btn-outline-secondary" data-fact="dec" data-id="${f.id}">−</button>
@@ -538,17 +676,36 @@ function todayISO() {
           </td>`;
         tbodyFerramentas.appendChild(tr);
       });
-
-      tbodyFerramentas.querySelectorAll('[data-fact]').forEach(b => { b.addEventListener('click', handleFerramentaAction); });
-      tbodyFerramentas.querySelectorAll('input[data-fact="qtd"]').forEach(inp => {
-        inp.addEventListener('change', (e) => {
-          const id = e.target.getAttribute('data-id');
-          const f = viaturaAtual.ferramentas.find(x => x.id === id);
-          f.qtd = Math.max(0, parseInt(e.target.value || '0', 10));
-          saveDB();
-        });
-      });
     }
+  });
+
+  // eventos de grupo
+  tbodyFerramentas.querySelectorAll('[data-group-toggle]').forEach(b => {
+    b.addEventListener('click', (e) => {
+      const key = e.currentTarget.getAttribute('data-group-toggle');
+      if (expandedFerrGroups.has(key)) expandedFerrGroups.delete(key);
+      else expandedFerrGroups.add(key);
+      renderFerramentas();
+    });
+  });
+  tbodyFerramentas.querySelectorAll('[data-group-add]').forEach(b => {
+    b.addEventListener('click', (e) => {
+      const nome = e.currentTarget.getAttribute('data-group-add');
+      openFormFerramenta(null, nome);   // pré-preenche o nome
+    });
+  });
+
+  // eventos dos itens (mesmos de antes)
+  tbodyFerramentas.querySelectorAll('[data-fact]').forEach(b => b.addEventListener('click', handleFerramentaAction));
+  tbodyFerramentas.querySelectorAll('input[data-fact="qtd"]').forEach(inp => {
+    inp.addEventListener('change', (e) => {
+      const id = e.target.dataset.id;
+      const f = viaturaAtual.ferramentas.find(x => x.id === id);
+      f.qtd = Math.max(0, parseInt(e.target.value || '0', 10));
+      saveDB();
+    });
+  });
+}
 
     function handleFerramentaAction(e) {
       const el = e.currentTarget;
@@ -571,7 +728,7 @@ function todayISO() {
 
     document.getElementById('btnAddFerramenta').addEventListener('click', () => openFormFerramenta());
 
-    function openFormFerramenta(f = null) {
+    function openFormFerramenta(f = null, defaultNome = '') {
       const isEdit = !!f;
       const title = isEdit ? 'Editar Ferramenta' : 'Adicionar Ferramenta';
       injectFormFields([
@@ -599,20 +756,27 @@ function todayISO() {
   list.forEach((c) => {
     const tr = document.createElement('tr');
     tr.innerHTML = `
-      <td>${c.data || '—'}</td>
-      <td>${c.kms ?? '—'}</td>
-      <td>
-        <span class="badge ${c.limpo ? 'bg-success' : 'bg-danger'}">
-          ${c.limpo ? 'Sim' : 'Não'}
-        </span>
-      </td>
-      <td>${c.obs ? c.obs.replace(/</g,'&lt;') : ''}</td>
-      <td>
-        <div class="d-flex gap-2">
-          <button class="btn btn-outline-secondary btn-sm" data-chk="edit" data-id="${c.id}">Editar</button>
-          <button class="btn btn-outline-danger btn-sm" data-chk="del" data-id="${c.id}">Remover</button>
-        </div>
-      </td>`;
+  <td>${c.data || '—'}</td>
+  <td>${c.kms ?? '—'}</td>
+  <td><span class="badge ${c.limpo ? 'bg-success' : 'bg-danger'}">${c.limpo ? 'Sim' : 'Não'}</span></td>
+  <td>${(c.equipa || '—').replace(/</g,'&lt;')}</td>
+  <td>
+    ${c.toolsSummary ? `
+      <span class="badge bg-success">OK ${c.toolsSummary.ok}</span>
+      <span class="badge bg-danger ms-1">Falta ${c.toolsSummary.falta}</span>
+      <span class="badge bg-warning text-dark ms-1">Danif. ${c.toolsSummary.danificado}</span>
+      <span class="text-secondary ms-1">Tot. ${c.toolsSummary.total}</span>
+    ` : '<span class="text-secondary">—</span>'}
+  </td>
+  <td>${c.obs ? c.obs.replace(/</g,'&lt;') : ''}</td>
+  <td>
+    <div class="d-flex flex-wrap gap-2">
+      ${c.tools ? '<button class="btn btn-outline-primary btn-sm" data-chk="viewtools" data-id="'+c.id+'">Ver</button>' : ''}
+      <button class="btn btn-outline-secondary btn-sm" data-chk="edit" data-id="${c.id}">Editar</button>
+      <button class="btn btn-outline-danger btn-sm" data-chk="del" data-id="${c.id}">Remover</button>
+    </div>
+  </td>`;
+
     tbodyChecklists.appendChild(tr);
   });
 
@@ -627,6 +791,10 @@ function handleChecklistAction(e) {
   const act = e.currentTarget.getAttribute('data-chk');
   const list = viaturaAtual.checklists || (viaturaAtual.checklists = []);
   const c = list.find(x => x.id === id);
+
+  if (act === 'viewtools' && c?.tools) {
+  return openChecklistTools(c);
+}
 
   if (act === 'edit' && c) return openFormChecklist(c);
 
@@ -654,14 +822,36 @@ function openFormChecklist(c = null) {
     { label: 'Limpeza', name: 'limpo', type: 'select', options: [
       { value: 'sim', label: 'Limpo' },
       { value: 'nao', label: 'Sujo' }], value: c?.limpo ? 'sim' : 'nao' },
+    { label: 'Equipa', name: 'equipa', type: 'select', options: [
+      { value: 'EIP 1', label: 'EIP 1' },
+      { value: 'EIP 2', label: 'EIP 2' }], value: c?.equipa || 'EIP 1' },
+
+    { label: 'Anexar análise das ferramentas de hoje', name: 'anexarFerr', type: 'select', options: [
+      { value: 'sim', label: 'Sim' },
+      { value: 'nao', label: 'Não' }], value: 'sim' },
+
+
     { label: 'Observações', name: 'obs', type: 'text', value: c?.obs || '' },
   ], title, (formData) => {
+
+    const anexar = formData.anexarFerr === 'sim';
+let toolsSummary = null, tools = null;
+if (anexar) {
+  tools = (viaturaAtual.ferramentas || []).map(f => ({
+    nome: f.nome, qtd: Number(f.qtd) || 0, estado: f.estado
+  }));
+  toolsSummary = resumoFerramentas(viaturaAtual.ferramentas || []);
+}
+
     const payload = {
       id: c?.id || cryptoRandom(),
       data: formData.data || todayISO(),
       kms: Math.max(0, parseInt(formData.kms || '0', 10)),
       limpo: formData.limpo === 'sim',
-      obs: formData.obs?.trim() || ''
+      equipa: formData.equipa || 'EIP 1',
+      obs: formData.obs?.trim() || '',
+      toolsSummary, // NOVO
+      tools         // NOVO
     };
 
     if (isEdit) Object.assign(c, payload);
@@ -672,6 +862,62 @@ function openFormChecklist(c = null) {
     saveDB();
     renderChecklists();
   });
+}
+
+
+function resumoFerramentas(list) {
+  const res = { ok: 0, falta: 0, danificado: 0, total: 0, byName: {} };
+  (list || []).forEach(f => {
+    const q = Number(f.qtd) || 0;
+    res.total += q;
+    if (f.estado === 'ok') res.ok += q;
+    else if (f.estado === 'falta') res.falta += q;
+    else if (f.estado === 'danificado') res.danificado += q;
+
+    const n = (f.nome || '(sem nome)').trim();
+    const g = res.byName[n] || (res.byName[n] = { ok: 0, falta: 0, danificado: 0, total: 0 });
+    g.total += q;
+    if (f.estado === 'ok') g.ok += q;
+    else if (f.estado === 'falta') g.falta += q;
+    else if (f.estado === 'danificado') g.danificado += q;
+  });
+  return res;
+}
+
+function openChecklistTools(c) {
+  const sum = c.toolsSummary || resumoFerramentas(c.tools || []);
+  const rows = (c.tools || []).map(t =>
+    `<tr><td>${(t.nome||'').replace(/</g,'&lt;')}</td><td class="text-center">${t.qtd}</td><td>${t.estado}</td></tr>`
+  ).join('') || '<tr><td colspan="3" class="text-secondary">Sem registos.</td></tr>';
+
+  const html = `
+    <div class="col-12">
+      <div class="mb-2">
+        <span class="badge bg-success">OK ${sum.ok}</span>
+        <span class="badge bg-danger ms-1">Falta ${sum.falta}</span>
+        <span class="badge bg-warning text-dark ms-1">Danificado ${sum.danificado}</span>
+        <span class="text-secondary ms-2">Total ${sum.total}</span>
+      </div>
+      <div class="table-responsive">
+        <table class="table table-sm align-middle">
+          <thead class="table-light"><tr><th>Ferramenta</th><th style="width:90px;" class="text-center">Qtd</th><th style="width:140px;">Estado</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+    </div>`;
+
+  // Reutiliza o modalForm como modal de leitura
+  const titleEl = document.getElementById('modalFormTitle');
+  const form = document.getElementById('formGeneric');
+  const saveBtn = document.getElementById('modalSave');
+
+  titleEl.textContent = `Ferramentas — ${c.data || ''}`;
+  form.innerHTML = html;
+  const oldText = saveBtn.textContent;
+  const handler = () => { modalForm.hide(); saveBtn.removeEventListener('click', handler); saveBtn.textContent = oldText; };
+  saveBtn.textContent = 'Fechar';
+  saveBtn.addEventListener('click', handler);
+  modalForm.show();
 }
 
 
@@ -711,21 +957,6 @@ function openFormChecklist(c = null) {
         </div>
       </td>
 
-      <!-- Planeamento -->
-      <td>
-        <select class="form-select form-select-sm" data-arica="planStatus" data-id="${a.id}">
-          <option value="por_realizar" ${ (a.planStatus||'por_realizar')==='por_realizar'?'selected':''}>Por realizar</option>
-          <option value="realizado" ${a.planStatus==='realizado'?'selected':''}>Realizado</option>
-        </select>
-      </td>
-
-      <!-- Observações (visível ≥ lg) -->
-      <td class="d-none d-lg-table-cell">
-        <input type="text" class="form-control form-control-sm" placeholder="Observações"
-               value="${a.obs || ''}" data-arica="obs" data-id="${a.id}">
-      </td>
-
-      <!-- Estado -->
       <td>
         <select class="form-select form-select-sm" data-arica="estado" data-id="${a.id}">
           <option value="operacional" ${a.estado==='operacional'?'selected':''}>Operacional</option>
@@ -733,13 +964,11 @@ function openFormChecklist(c = null) {
         </select>
       </td>
 
-      <!-- BAR -->
       <td>
         <input type="text" class="form-control form-control-sm" placeholder="BAR"
-               value="${a.bar||''}" data-arica="bar" data-id="${a.id}" />
+               value="${a.bar||''}" data-arica="bar" data-id="${a.id}">
       </td>
 
-      <!-- Ações -->
       <td>
         <div class="d-flex gap-2">
           <button class="btn btn-outline-secondary btn-sm" data-arica="edit" data-id="${a.id}">Editar</button>
@@ -749,7 +978,7 @@ function openFormChecklist(c = null) {
     tbodyAricas.appendChild(tr);
   });
 
-  // Botões Editar / Remover
+  // Editar/Remover
   tbodyAricas.querySelectorAll('[data-arica="edit"], [data-arica="del"]')
     .forEach(b => b.addEventListener('click', handleAricaAction));
 
@@ -760,49 +989,37 @@ function openFormChecklist(c = null) {
       const a = DB.aricas.find(x => x.id === id);
       if (!a) return;
       a.estado = e.target.value;
-      saveDB();
-      renderKPIs();
+      saveDB(); renderKPIs();
     });
   });
 
-  // BAR & Observações (guardam em change/blur)
-  const saveText = (e) => {
-    const id = e.target.dataset.id;
-    const key = e.target.dataset.arica; // 'bar' ou 'obs'
-    const a = DB.aricas.find(x => x.id === id);
-    if (!a) return;
-    a[key] = e.target.value;
-    saveDB();
-  };
-  tbodyAricas.querySelectorAll('input[data-arica="bar"], input[data-arica="obs"]').forEach(inp => {
-    inp.addEventListener('change', saveText);
-    inp.addEventListener('blur', saveText);
-  });
-
-  // Datas (provaH/validade)
+  // Datas
   tbodyAricas.querySelectorAll('input[data-arica="provaH"], input[data-arica="validade"]').forEach(inp => {
     inp.addEventListener('change', (e) => {
       const id = e.target.dataset.id;
       const key = e.target.dataset.arica;
       const a = DB.aricas.find(x => x.id === id);
       if (!a) return;
-      a[key] = e.target.value; // yyyy-mm-dd
+      a[key] = e.target.value;
       saveDB();
-      renderAricas(); // recalcula badge
+      renderAricas(); // recalcula a badge
     });
   });
 
-  // Planeamento (Por realizar/Realizado)
-  tbodyAricas.querySelectorAll('select[data-arica="planStatus"]').forEach(sel => {
-    sel.addEventListener('change', (e) => {
+  // BAR
+  tbodyAricas.querySelectorAll('input[data-arica="bar"]').forEach(inp => {
+    const save = (e) => {
       const id = e.target.dataset.id;
       const a = DB.aricas.find(x => x.id === id);
       if (!a) return;
-      a.planStatus = e.target.value;
+      a.bar = e.target.value;
       saveDB();
-    });
+    };
+    inp.addEventListener('change', save);
+    inp.addEventListener('blur', save);
   });
 }
+
 
 
     document.getElementById('btnAddArica').addEventListener('click', () => openFormArica());
@@ -830,24 +1047,116 @@ function openFormChecklist(c = null) {
     { label: 'Estado', name: 'estado', type: 'select', options: [
       { value: 'operacional', label: 'Operacional' },
       { value: 'inoperacional', label: 'Inoperacional' }], value: a?.estado || 'operacional' },
-
     { label: 'Data de prova hidráulica', name: 'provaH', type: 'date', value: a?.provaH || '' },
     { label: 'Data de validade',        name: 'validade', type: 'date', value: a?.validade || '' },
-
-    { label: 'Planeamento', name: 'planStatus', type: 'select', options: [
-      { value: 'por_realizar', label: 'Por realizar' },
-      { value: 'realizado',    label: 'Realizado' }], value: a?.planStatus || 'por_realizar' },
-
-    { label: 'Observações', name: 'obs', type: 'text', value: a?.obs || '' },
     { label: 'BAR', name: 'bar', type: 'text', value: a?.bar || '' },
   ], title, (formData) => {
     if (isEdit) { Object.assign(a, formData); }
     else { DB.aricas.push({ id: cryptoRandom(), ...formData }); }
-    saveDB();
-    renderAricas();
-    renderKPIs();
+    saveDB(); renderAricas(); renderKPIs();
   });
 }
+
+// =============================================================
+// ====================== PLANEAMENTO (CRUD) ===================
+// =============================================================
+function renderPlaneamento() {
+  if (!tbodyPlaneamento) return;
+  tbodyPlaneamento.innerHTML = '';
+
+  const q = (searchPlaneamento?.value || '').toLowerCase().trim();
+  const list = (DB.planeamento || [])
+    .filter(p => (p.texto || '').toLowerCase().includes(q))
+    .sort((a,b) => (b.createdAt||0) - (a.createdAt||0)); // mais recentes primeiro
+
+  if (!list.length) {
+    tbodyPlaneamento.innerHTML = '<tr><td colspan="4" class="text-secondary p-3">Sem registos.</td></tr>';
+    return;
+  }
+
+  list.forEach((p, i) => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${i + 1}</td>
+      <td>${(p.texto || '').replace(/</g,'&lt;')}</td>
+      <td>
+        <select class="form-select form-select-sm" data-plan="estado" data-id="${p.id}">
+          <option value="por_realizar" ${p.estado==='por_realizar'?'selected':''}>Por realizar</option>
+          <option value="realizado" ${p.estado==='realizado'?'selected':''}>Realizado</option>
+        </select>
+      </td>
+      <td>
+        <div class="d-flex gap-2">
+          <button class="btn btn-outline-secondary btn-sm" data-plan="edit" data-id="${p.id}">Editar</button>
+          <button class="btn btn-outline-danger btn-sm" data-plan="del" data-id="${p.id}">Remover</button>
+        </div>
+      </td>`;
+    tbodyPlaneamento.appendChild(tr);
+  });
+
+  // Estado inline
+  tbodyPlaneamento.querySelectorAll('select[data-plan="estado"]').forEach(sel => {
+    sel.addEventListener('change', (e) => {
+      const id = e.target.dataset.id;
+      const item = DB.planeamento.find(x => x.id === id);
+      if (!item) return;
+      item.estado = e.target.value;
+      saveDB();
+    });
+  });
+
+  // Editar/Remover
+  tbodyPlaneamento.querySelectorAll('[data-plan="edit"], [data-plan="del"]').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const id = e.currentTarget.dataset.id;
+      const act = e.currentTarget.dataset.plan;
+      const item = DB.planeamento.find(x => x.id === id);
+      if (!item) return;
+
+      if (act === 'edit') return openFormPlano(item);
+      if (act === 'del') {
+        confirmDelete(() => {
+          DB.planeamento = DB.planeamento.filter(x => x.id !== id);
+          saveDB(); renderPlaneamento();
+        }, `Remover o registo de planeamento?`);
+      }
+    });
+  });
+}
+
+function openFormPlano(p = null) {
+  const isEdit = !!p;
+  const title = isEdit ? 'Editar registo de planeamento' : 'Novo registo de planeamento';
+  injectFormFields([
+    { label: 'Observação', name: 'texto', type: 'textarea', rows: 5, required: true, value: p?.texto || '' },
+    { label: 'Estado', name: 'estado', type: 'select', options: [
+      { value: 'por_realizar', label: 'Por realizar' },
+      { value: 'realizado',    label: 'Realizado' }], value: p?.estado || 'por_realizar' },
+  ], title, (formData) => {
+    if (isEdit) {
+      Object.assign(p, { texto: formData.texto, estado: formData.estado });
+    } else {
+      DB.planeamento.push({
+        id: cryptoRandom(),
+        texto: formData.texto,
+        estado: formData.estado || 'por_realizar',
+        createdAt: Date.now()
+      });
+    }
+    saveDB(); renderPlaneamento();
+  });
+}
+
+// Exportar para Excel
+document.getElementById('btnExportPlaneamento').addEventListener('click', () => {
+  const rows = (DB.planeamento || []).map((p, i) => ({
+    N: i + 1,
+    Observacao: p.texto || '',
+    Estado: p.estado || 'por_realizar'
+  }));
+  exportSheet(rows, 'planeamento.xlsx', 'Planeamento');
+});
+
 
 
     // =============================================================
@@ -875,11 +1184,10 @@ function openFormChecklist(c = null) {
   Estado: a.estado || '',
   BAR: a.bar || '',
   Prova_Hidraulica: a.provaH || '',
-  Validade: a.validade || '',
-  Planeamento: a.planStatus || '',
-  Observacoes: a.obs || ''
+  Validade: a.validade || ''
 }));
 exportSheet(rows, 'aricas.xlsx', 'ARICAS');
+
 
     });
 
@@ -942,9 +1250,23 @@ exportSheet(rows, 'aricas.xlsx', 'ARICAS');
     Data: c.data || '',
     Kms: c.kms ?? '',
     Limpo: c.limpo ? 'Sim' : 'Não',
+    Equipa: c.equipa || '',
+    OK: c.toolsSummary?.ok ?? '',
+    Falta: c.toolsSummary?.falta ?? '',
+    Danificado: c.toolsSummary?.danificado ?? '',
+    Total: c.toolsSummary?.total ?? '',
     Observacoes: c.obs || ''
   }));
   exportSheet(rows, `${viaturaAtual.nome}-checklists.xlsx`, 'Checklists');
+});
+
+let ferrGrouped = true;                     // começa agrupado
+const expandedFerrGroups = new Set();       // grupos abertos
+
+document.getElementById('btnToggleGroupFerr').addEventListener('click', () => {
+  ferrGrouped = !ferrGrouped;
+  document.getElementById('btnToggleGroupFerr').textContent = ferrGrouped ? 'Desagrupar' : 'Agrupar';
+  renderFerramentas();
 });
 
 

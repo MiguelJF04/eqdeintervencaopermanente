@@ -1,0 +1,958 @@
+<!doctype html>
+<html lang="pt-PT" data-bs-theme="light">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>EIP – Checklists de Viaturas (Bootstrap)</title>
+
+  <!-- ===================== Bootstrap & Libs ===================== -->
+  <link rel="stylesheet" href="bootstrap.min.css" />
+  <script src="https://unpkg.com/@popperjs/core@2"></script>
+  <script src="bootstrap.min.js"></script>
+  <!-- Exportação para Excel (SheetJS) -->
+  <script src="https://cdn.sheetjs.com/xlsx-0.19.3/package/dist/xlsx.full.min.js"></script>
+
+  <!-- ===================== Estilos do Projeto ===================== -->
+  <style>
+    /* ===== Palete original (mantida) ===== */
+    :root {
+      --accent: #003366;      /* primária */
+      --accent-dark: #002244; /* hover/mais escuro */
+      --muted: #6b7280;
+      --page-bg: #f7f7f9;
+      --status-ok: #10b981;       /* verde */
+      --status-missing: #ef4444;  /* vermelho */
+      --status-damaged: #f59e0b;  /* laranja */
+
+      /* Alinhar com tokens Bootstrap */
+      --bs-primary: var(--accent);
+      --bs-primary-rgb: 0, 51, 102;
+      --bs-secondary: #4b5563;
+      --bs-body-bg: #ffffff;
+    }
+
+    body { background: linear-gradient(180deg, #fbfbfc, #f0f2f5); }
+
+    /* Cartões e elementos com bordas suaves */
+    .soft-card {
+      background: #fff;
+      border: 1px solid rgba(15, 23, 42, 0.06);
+      border-radius: 12px;
+      box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+    }
+
+    .badge-light-type { background-color: #dbeafe; color: #1e40af; }
+    .badge-heavy-type { background-color: #fee2e2; color: #991b1b; }
+
+    .status-pill { min-width: 120px; }
+    .status-oper { background-color: var(--status-ok) !important; }
+    .status-inop { background-color: var(--status-missing) !important; }
+
+    /* Hero da home: mostra a imagem inteira (letterbox se necessário) */
+    .home-hero{ height: clamp(220px, 30vw, 360px); display:flex; align-items:center; justify-content:center; background:#fff; }
+    .home-hero img{ max-width:100%; max-height:100%; object-fit:contain; display:block; }
+
+    @media print {
+      body * { visibility: hidden; }
+      #print-section, #print-section * { visibility: visible; }
+      #print-section { position: absolute; inset: 0; width: 100%; }
+      .no-print { display: none !important; }
+    }
+
+    table.table tbody tr:hover { background-color: #f9fafb; }
+  </style>
+</head>
+<body>
+  <!-- ============================================================= -->
+  <!-- ====================== HEADER / NAVBAR ======================= -->
+  <!-- ============================================================= -->
+  <nav class="navbar navbar-expand-lg navbar-dark" style="background: linear-gradient(90deg, var(--accent), #00509e)">
+    <div class="container">
+      <a class="navbar-brand fw-bold" href="#">EQUIPA DE INTERVENÇÃO PERMANENTE</a>
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div id="mainNav" class="collapse navbar-collapse">
+        <ul class="navbar-nav ms-auto mb-2 mb-lg-0">
+          <li class="nav-item"><a class="nav-link" href="#" data-view="home">Início</a></li>
+          <li class="nav-item"><a class="nav-link" href="#" data-view="viaturas">Ver Viaturas</a></li>
+          <li class="nav-item"><a class="nav-link" href="#" data-view="aricas">Ver ARICAS</a></li>
+          <li class="nav-item"><button id="btnPrint" class="btn btn-sm btn-secondary ms-lg-3 no-print">Imprimir</button></li>
+        </ul>
+      </div>
+    </div>
+  </nav>
+
+  <!-- ============================================================= -->
+  <!-- ======================== CONTEÚDO =========================== -->
+  <!-- ============================================================= -->
+  <main class="container py-4">
+    <!-- ===================== HOME ===================== -->
+    <!-- ===== Secção: Home ===== -->
+    <section id="view-home" class="soft-card p-4 mb-4">
+      <div class="row g-4 align-items-center">
+        <div class="col-lg-8">
+          <h2 class="h4 mb-1">Bem-vindo</h2>
+          <p class="text-secondary mb-0">Gestão rápida das checklists das viaturas da EIP. Usa o topo para navegar entre vistas.</p>
+        </div>
+        <div class="col-lg-4 text-lg-end">
+          <button class="btn btn-primary me-2" data-view="viaturas">Ver Viaturas</button>
+          <button class="btn btn-outline-primary" data-view="aricas">Ver ARICAS</button>
+        </div>
+      </div>
+
+      <!-- ===== Imagem da página inicial (troca o src) ===== -->
+      <div class="soft-card mt-3 p-2">
+        <div class="home-hero">
+          <img src="Equipa-de-Intervencao-Permanente-Bombeiros.png" alt="Imagem de destaque">
+        </div>
+      </div>
+
+      <!-- ===== KPIs / Estatísticas de Viaturas ===== -->
+      <div class="row row-cols-1 row-cols-sm-2 row-cols-lg-4 g-3 mt-1">
+        <div class="col"><div class="soft-card p-3 h-100"><div class="text-secondary small">Total de Viaturas</div><div id="kpiTotal" class="display-6 fw-bold">0</div></div></div>
+        <div class="col"><div class="soft-card p-3 h-100"><div class="text-secondary small">Operacionais</div><div id="kpiOper" class="display-6 fw-bold text-success">0</div></div></div>
+        <div class="col"><div class="soft-card p-3 h-100"><div class="text-secondary small">Inoperacionais</div><div id="kpiInop" class="display-6 fw-bold text-danger">0</div></div></div>
+        <div class="col"><div class="soft-card p-3 h-100"><div class="text-secondary small">ARICAS</div><div id="kpiAricas" class="display-6 fw-bold">0</div></div></div>
+      </div>
+
+      <!-- ===== KPIs de Ferramentas ===== -->
+      <div class="row row-cols-1 row-cols-sm-2 row-cols-lg-4 g-3 mt-1">
+        <div class="col"><div class="soft-card p-3 h-100"><div class="text-secondary small">Total de Ferramentas</div><div id="kpiFerrTotal" class="display-6 fw-bold">0</div></div></div>
+        <div class="col"><div class="soft-card p-3 h-100"><div class="text-secondary small">Ferramentas OK</div><div id="kpiFerrOK" class="display-6 fw-bold text-success">0</div></div></div>
+        <div class="col"><div class="soft-card p-3 h-100"><div class="text-secondary small">Ferramentas em Falta</div><div id="kpiFerrFalta" class="display-6 fw-bold text-danger">0</div></div></div>
+        <div class="col"><div class="soft-card p-3 h-100"><div class="text-secondary small">Ferramentas Danificadas</div><div id="kpiFerrDan" class="display-6 fw-bold text-warning">0</div></div></div>
+      </div>
+    </section>
+
+    <!-- ===================== VIATURAS (lista) ===================== -->
+    <section id="view-viaturas" class="d-none">
+      <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-2 mb-3">
+        <h2 class="h4 mb-0">Viaturas</h2>
+        <div class="d-flex gap-2">
+          <input id="searchViaturas" class="form-control" type="search" placeholder="Pesquisar…" style="max-width: 260px;" />
+          <button id="btnAddViatura" class="btn btn-primary">Adicionar</button>
+          <button id="btnExportViaturas" class="btn btn-outline-secondary">Exportar Excel</button>
+        </div>
+      </div>
+      <div id="gridViaturas" class="row g-3"></div>
+    </section>
+
+    <!-- ===================== DETALHE VIATURA ===================== -->
+    <section id="view-viatura" class="d-none">
+      <div class="d-flex align-items-center justify-content-between mb-3">
+        <button class="btn btn-link text-decoration-none" data-view="viaturas">← Voltar</button>
+        <div class="d-flex gap-2">
+          <button id="btnAddFerramenta" class="btn btn-primary">Adicionar Ferramenta</button>
+          <button id="btnExportFerramentas" class="btn btn-outline-secondary">Exportar Excel</button>
+        </div>
+      </div>
+
+      <div class="soft-card p-3 mb-3">
+        <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-2">
+          <div>
+            <h3 id="detalheTitulo" class="h5 mb-1">Viatura</h3>
+            <div id="detalheMeta" class="text-secondary small">Tipo • Matrícula</div>
+          </div>
+          <div class="btn-group" role="group" aria-label="Estado da viatura">
+            <button id="btnEstadoOper" class="btn btn-success status-pill">Operacional</button>
+            <button id="btnEstadoInop" class="btn btn-danger status-pill">Inoperacional</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="soft-card p-0">
+        <div class="table-responsive">
+          <table class="table align-middle mb-0">
+            <thead class="table-light">
+              <tr>
+                <th style="width: 38px;">#</th>
+                <th>Ferramenta</th>
+                <th style="width: 120px;">Qtd</th>
+                <th style="width: 180px;">Estado</th>
+                <th style="width: 180px;">Ações</th>
+              </tr>
+            </thead>
+            <tbody id="tbodyFerramentas"></tbody>
+          </table>
+        </div>
+      </div>
+      <!-- ===== Checklist Diário (Viatura) ===== -->
+<div class="soft-card p-3 mt-3">
+  <div class="d-flex justify-content-between align-items-center mb-2">
+    <h4 class="h6 mb-0">Checklist diário</h4>
+    <div class="d-flex gap-2">
+      <button id="btnAddChecklist" class="btn btn-sm btn-primary">Novo registo</button>
+      <button id="btnExportChecklists" class="btn btn-sm btn-outline-secondary">Exportar Excel</button>
+    </div>
+  </div>
+  <div class="table-responsive">
+    <table class="table align-middle mb-0">
+      <thead class="table-light">
+        <tr>
+          <th style="width: 140px;">Data</th>
+          <th style="width: 120px;">Kms</th>
+          <th style="width: 120px;">Limpo</th>
+          <th>Observações</th>
+          <th style="width: 160px;">Ações</th>
+        </tr>
+      </thead>
+      <tbody id="tbodyChecklists"></tbody>
+    </table>
+  </div>
+</div>
+
+</section>
+    </section>
+
+    <!-- ===================== ARICAS ===================== -->
+    <section id="view-aricas" class="d-none">
+      <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-2 mb-3">
+        <h2 class="h4 mb-0">ARICAS</h2>
+        <div class="d-flex gap-2">
+          <button id="btnAddArica" class="btn btn-primary">Adicionar</button>
+          <button id="btnExportAricas" class="btn btn-outline-secondary">Exportar Excel</button>
+        </div>
+      </div>
+
+      <div class="soft-card p-0">
+        <div class="table-responsive">
+          <table class="table align-middle mb-0">
+            <thead class="table-light">
+  <tr>
+    <th style="width: 42px;">#</th>
+    <th>Designação</th>
+    <th>Localização</th>
+    <th class="d-none d-md-table-cell" style="width:170px;">Prova hidráulica</th>
+    <th class="d-none d-md-table-cell" style="width:170px;">Validade</th>
+    <th style="width:150px;">Planeamento</th>
+    <th class="d-none d-lg-table-cell" style="min-width:220px;">Observações</th>
+    <th style="width:150px;">Estado</th>
+    <th style="width:140px;">BAR</th>
+    <th style="width:160px;">Ações</th>
+  </tr>
+</thead>
+
+            <tbody id="tbodyAricas"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== ÁREA DE IMPRESSÃO ===================== -->
+    <section id="print-section" class="d-none"></section>
+  </main>
+
+  <!-- ============================================================= -->
+  <!-- ============================ MODAIS ========================= -->
+  <!-- ============================================================= -->
+  <div class="modal fade" id="modalForm" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 id="modalFormTitle" class="modal-title">Título</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <form id="formGeneric" class="row g-3">
+            <!-- Campos injetados via JS -->
+          </form>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button id="modalSave" type="button" class="btn btn-primary">Guardar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal fade" id="modalConfirm" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Confirmar</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body" id="modalConfirmMsg">Tens a certeza?</div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button id="modalConfirmYes" type="button" class="btn btn-danger">Sim, continuar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================= -->
+  <!-- ============================ SCRIPT ========================= -->
+  <!-- ============================================================= -->
+  <script>
+    // =============================================================
+    // =============== DADOS & ARMAZENAMENTO LOCAL =================
+    // =============================================================
+    const DB_KEY = 'eip_bootstrap_db_v2';
+    const dbDefault = {
+      viaturas: [
+        { id: cryptoRandom(), nome: 'VUCI 01', tipo: 'pesada', matricula: 'AA-00-AA', estado: 'operacional',
+          ferramentas: [
+            { id: cryptoRandom(), nome: 'Maca', qtd: 1, estado: 'ok' },
+            { id: cryptoRandom(), nome: 'Extintor 6kg', qtd: 2, estado: 'ok' },
+            { id: cryptoRandom(), nome: 'Lanterna', qtd: 3, estado: 'danificado' }
+          ], checklists: []  },
+        { id: cryptoRandom(), nome: 'ABSC 02', tipo: 'ligeira', matricula: 'BB-11-BB', estado: 'operacional', ferramentas: [], checklists: []  },
+        { id: cryptoRandom(), nome: 'VTU 03', tipo: 'ligeira', matricula: 'CC-22-CC', estado: 'inoperacional', ferramentas: [], checklists: []  }
+      ],
+      aricas: [
+  { id: cryptoRandom(), nome: 'ARICA Norte', local: 'Parque A', estado: 'operacional', bar: '', provaH: '', validade: '', obs: '', planStatus: 'por_realizar' },
+  { id: cryptoRandom(), nome: 'ARICA Sul',   local: 'Parque B', estado: 'operacional', bar: '', provaH: '', validade: '', obs: '', planStatus: 'por_realizar' }
+]
+
+    };
+
+    function loadDB() { try { return JSON.parse(localStorage.getItem(DB_KEY)) || dbDefault; } catch { return dbDefault; } }
+    function saveDB() { localStorage.setItem(DB_KEY, JSON.stringify(DB)); }
+    function cryptoRandom() { return Math.random().toString(36).slice(2) + Date.now().toString(36); }
+
+    let DB = loadDB();
+
+    // =============================================================
+    // ===================== NAVEGAÇÃO ENTRE VISTAS =================
+    // =============================================================
+    const sections = {
+      home: document.getElementById('view-home'),
+      viaturas: document.getElementById('view-viaturas'),
+      viatura: document.getElementById('view-viatura'),
+      aricas: document.getElementById('view-aricas'),
+      print: document.getElementById('print-section'),
+    };
+
+    document.querySelectorAll('[data-view]').forEach(el => {
+      el.addEventListener('click', (e) => {
+        e.preventDefault();
+        const v = el.getAttribute('data-view');
+        goView(v);
+      });
+    });
+
+    function goView(name) {
+      Object.values(sections).forEach(s => s.classList.add('d-none'));
+      const target = sections[name];
+      if (target) target.classList.remove('d-none');
+      if (name === 'viaturas') renderViaturas();
+      if (name === 'aricas') renderAricas();
+      if (name === 'home') renderKPIs();
+    }
+
+    // =============================================================
+    // ====================== RENDER – HOME/KPIs ====================
+    // =============================================================
+    function renderKPIs() {
+      const total = DB.viaturas.length;
+      const oper = DB.viaturas.filter(v => v.estado === 'operacional').length;
+      const inop = DB.viaturas.filter(v => v.estado === 'inoperacional').length;
+      const aricas = DB.aricas.length;
+
+      const allFerr = DB.viaturas.flatMap(v => v.ferramentas || []);
+      const ferrTotal = allFerr.length;
+      const ferrOK = allFerr.filter(f => f.estado === 'ok').length;
+      const ferrFalta = allFerr.filter(f => f.estado === 'falta').length;
+      const ferrDan = allFerr.filter(f => f.estado === 'danificado').length;
+
+      document.getElementById('kpiTotal').textContent = total;
+      document.getElementById('kpiOper').textContent = oper;
+      document.getElementById('kpiInop').textContent = inop;
+      document.getElementById('kpiAricas').textContent = aricas;
+
+      const byId = id => document.getElementById(id);
+      if (byId('kpiFerrTotal')) byId('kpiFerrTotal').textContent = ferrTotal;
+      if (byId('kpiFerrOK')) byId('kpiFerrOK').textContent = ferrOK;
+      if (byId('kpiFerrFalta')) byId('kpiFerrFalta').textContent = ferrFalta;
+      if (byId('kpiFerrDan')) byId('kpiFerrDan').textContent = ferrDan;
+    }
+
+    // =============================================================
+    // ====================== RENDER – VIATURAS =====================
+    // =============================================================
+    const gridViaturas = document.getElementById('gridViaturas');
+    const searchViaturas = document.getElementById('searchViaturas');
+
+    searchViaturas.addEventListener('input', () => renderViaturas());
+
+    function renderViaturas() {
+      const q = (searchViaturas.value || '').toLowerCase();
+      gridViaturas.innerHTML = '';
+
+      const list = DB.viaturas
+        .filter(v => (v.nome + ' ' + v.matricula).toLowerCase().includes(q))
+        .sort((a, b) => a.nome.localeCompare(b.nome));
+
+      if (!list.length) {
+        gridViaturas.innerHTML = '<div class="col"><div class="alert alert-secondary">Sem resultados.</div></div>';
+        return;
+      }
+
+      list.forEach(v => {
+        const col = document.createElement('div');
+        col.className = 'col-12 col-sm-6 col-lg-4';
+        col.innerHTML = `
+          <div class="soft-card p-3 h-100 d-flex flex-column">
+            <div class="d-flex align-items-start justify-content-between">
+              <div>
+                <h3 class="h5 mb-1">${v.nome}</h3>
+                <div class="text-secondary small">Matrícula: <strong>${v.matricula || '—'}</strong></div>
+              </div>
+              <span class="badge ${v.tipo === 'pesada' ? 'badge-heavy-type' : 'badge-light-type'} text-uppercase">${v.tipo}</span>
+            </div>
+            <div class="mt-2">
+              <span class="badge ${v.estado === 'operacional' ? 'bg-success' : 'bg-danger'}">${v.estado}</span>
+            </div>
+            <div class="mt-auto pt-3 d-flex gap-2">
+              <button class="btn btn-primary flex-grow-1" data-action="open" data-id="${v.id}">Abrir</button>
+              <button class="btn btn-outline-secondary" data-action="edit" data-id="${v.id}">Editar</button>
+              <button class="btn btn-outline-danger" data-action="delete" data-id="${v.id}">Apagar</button>
+            </div>
+          </div>`;
+        gridViaturas.appendChild(col);
+      });
+
+      gridViaturas.querySelectorAll('[data-action]').forEach(btn => {
+        btn.addEventListener('click', handleViaturaAction);
+      });
+    }
+
+    function handleViaturaAction(e) {
+      const id = e.currentTarget.getAttribute('data-id');
+      const action = e.currentTarget.getAttribute('data-action');
+      const v = DB.viaturas.find(x => x.id === id);
+      if (!v) return;
+      if (action === 'open') openViatura(v);
+      if (action === 'edit') openFormViatura(v);
+      if (action === 'delete') confirmDelete(() => {
+        DB.viaturas = DB.viaturas.filter(x => x.id !== id);
+        saveDB();
+        renderViaturas();
+        renderKPIs();
+      }, `Apagar a viatura <strong>${v.nome}</strong>?`);
+    }
+
+    // =============================================================
+    // ====================== FORM – VIATURA ========================
+    // =============================================================
+    document.getElementById('btnAddViatura').addEventListener('click', () => openFormViatura());
+
+    function openFormViatura(v = null) {
+      const isEdit = !!v;
+      const title = isEdit ? 'Editar Viatura' : 'Adicionar Viatura';
+      injectFormFields([
+        { label: 'Nome', name: 'nome', type: 'text', required: true, value: v?.nome || '' },
+        { label: 'Matrícula', name: 'matricula', type: 'text', value: v?.matricula || '' },
+        { label: 'Tipo', name: 'tipo', type: 'select', options: [
+          { value: 'ligeira', label: 'Ligeira' },
+          { value: 'pesada', label: 'Pesada' }], value: v?.tipo || 'ligeira' },
+        { label: 'Estado', name: 'estado', type: 'select', options: [
+          { value: 'operacional', label: 'Operacional' },
+          { value: 'inoperacional', label: 'Inoperacional' }], value: v?.estado || 'operacional' },
+      ], title, (formData) => {
+        if (isEdit) { Object.assign(v, formData); }
+        else { DB.viaturas.push({ id: cryptoRandom(), ferramentas: [], checklists: [], ...formData }); }
+        saveDB();
+        renderViaturas();
+        renderKPIs();
+      });
+    }
+
+    // =============================================================
+    // ====================== DETALHE – VIATURA =====================
+    // =============================================================
+    const detalheTitulo = document.getElementById('detalheTitulo');
+    const detalheMeta = document.getElementById('detalheMeta');
+    const tbodyFerramentas = document.getElementById('tbodyFerramentas');
+    const tbodyChecklists = document.getElementById('tbodyChecklists');
+
+function todayISO() {
+  const d = new Date(); const pad = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+}
+
+
+    let viaturaAtual = null;
+
+    function openViatura(v) {
+      viaturaAtual = v;
+      detalheTitulo.textContent = v.nome;
+      detalheMeta.textContent = `${v.tipo} • ${v.matricula || '—'}`;
+      renderFerramentas();
+      renderChecklists();
+      goView('viatura');
+      syncEstadoButtons();
+    }
+
+    function syncEstadoButtons() {
+      document.getElementById('btnEstadoOper').classList.toggle('status-oper', viaturaAtual.estado === 'operacional');
+      document.getElementById('btnEstadoInop').classList.toggle('status-inop', viaturaAtual.estado === 'inoperacional');
+    }
+
+    document.getElementById('btnEstadoOper').addEventListener('click', () => {
+      if (!viaturaAtual) return;
+      viaturaAtual.estado = 'operacional';
+      saveDB();
+      syncEstadoButtons();
+      renderKPIs();
+      renderViaturas();
+    });
+
+    document.getElementById('btnEstadoInop').addEventListener('click', () => {
+      if (!viaturaAtual) return;
+      viaturaAtual.estado = 'inoperacional';
+      saveDB();
+      syncEstadoButtons();
+      renderKPIs();
+      renderViaturas();
+    });
+
+    function renderFerramentas() {
+      tbodyFerramentas.innerHTML = '';
+      (viaturaAtual.ferramentas || []).forEach((f, i) => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${i + 1}</td>
+          <td>${f.nome}</td>
+          <td>
+            <div class="input-group input-group-sm" style="max-width: 140px;">
+              <button class="btn btn-outline-secondary" data-fact="dec" data-id="${f.id}">−</button>
+              <input class="form-control text-center" data-fact="qtd" data-id="${f.id}" type="number" min="0" value="${f.qtd}">
+              <button class="btn btn-outline-secondary" data-fact="inc" data-id="${f.id}">+</button>
+            </div>
+          </td>
+          <td>
+            <div class="btn-group btn-group-sm" role="group">
+              <button class="btn ${f.estado==='ok' ? 'btn-success' : 'btn-outline-success'}" data-fact="estado" data-value="ok" data-id="${f.id}">OK</button>
+              <button class="btn ${f.estado==='falta' ? 'btn-danger' : 'btn-outline-danger'}" data-fact="estado" data-value="falta" data-id="${f.id}">Falta</button>
+              <button class="btn ${f.estado==='danificado' ? 'btn-warning' : 'btn-outline-warning'}" data-fact="estado" data-value="danificado" data-id="${f.id}">Danificado</button>
+            </div>
+          </td>
+          <td>
+            <div class="d-flex gap-2">
+              <button class="btn btn-outline-secondary btn-sm" data-fact="edit" data-id="${f.id}">Editar</button>
+              <button class="btn btn-outline-danger btn-sm" data-fact="del" data-id="${f.id}">Remover</button>
+            </div>
+          </td>`;
+        tbodyFerramentas.appendChild(tr);
+      });
+
+      tbodyFerramentas.querySelectorAll('[data-fact]').forEach(b => { b.addEventListener('click', handleFerramentaAction); });
+      tbodyFerramentas.querySelectorAll('input[data-fact="qtd"]').forEach(inp => {
+        inp.addEventListener('change', (e) => {
+          const id = e.target.getAttribute('data-id');
+          const f = viaturaAtual.ferramentas.find(x => x.id === id);
+          f.qtd = Math.max(0, parseInt(e.target.value || '0', 10));
+          saveDB();
+        });
+      });
+    }
+
+    function handleFerramentaAction(e) {
+      const el = e.currentTarget;
+      const id = el.getAttribute('data-id');
+      const act = el.getAttribute('data-fact');
+      const f = viaturaAtual.ferramentas.find(x => x.id === id);
+      if (!f && act !== 'add') return;
+
+      if (act === 'inc') { f.qtd++; saveDB(); renderFerramentas(); renderKPIs(); return; }
+      if (act === 'dec') { f.qtd = Math.max(0, f.qtd - 1); saveDB(); renderFerramentas(); renderKPIs(); return; }
+      if (act === 'estado') { f.estado = el.getAttribute('data-value'); saveDB(); renderFerramentas(); renderKPIs(); return; }
+      if (act === 'edit') { openFormFerramenta(f); return; }
+      if (act === 'del') { confirmDelete(() => {
+          viaturaAtual.ferramentas = viaturaAtual.ferramentas.filter(x => x.id !== id);
+          saveDB();
+          renderFerramentas();
+          renderKPIs();
+        }, `Remover a ferramenta <strong>${f.nome}</strong>?`); return; }
+    }
+
+    document.getElementById('btnAddFerramenta').addEventListener('click', () => openFormFerramenta());
+
+    function openFormFerramenta(f = null) {
+      const isEdit = !!f;
+      const title = isEdit ? 'Editar Ferramenta' : 'Adicionar Ferramenta';
+      injectFormFields([
+        { label: 'Nome', name: 'nome', type: 'text', required: true, value: f?.nome || '' },
+        { label: 'Quantidade', name: 'qtd', type: 'number', min: 0, value: f?.qtd ?? 1 },
+        { label: 'Estado', name: 'estado', type: 'select', options: [
+          { value: 'ok', label: 'OK' },
+          { value: 'falta', label: 'Falta' },
+          { value: 'danificado', label: 'Danificado' }], value: f?.estado || 'ok' },
+      ], title, (formData) => {
+        formData.qtd = Math.max(0, parseInt(formData.qtd || '0', 10));
+        if (isEdit) { Object.assign(f, formData); }
+        else { viaturaAtual.ferramentas.push({ id: cryptoRandom(), ...formData }); }
+        saveDB();
+        renderFerramentas();
+        renderKPIs();
+      });
+    }
+    function renderChecklists() {
+  tbodyChecklists.innerHTML = '';
+  const list = (viaturaAtual.checklists || [])
+    .slice()
+    .sort((a, b) => (b.data || '').localeCompare(a.data || '')); // mais recente primeiro
+
+  list.forEach((c) => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${c.data || '—'}</td>
+      <td>${c.kms ?? '—'}</td>
+      <td>
+        <span class="badge ${c.limpo ? 'bg-success' : 'bg-danger'}">
+          ${c.limpo ? 'Sim' : 'Não'}
+        </span>
+      </td>
+      <td>${c.obs ? c.obs.replace(/</g,'&lt;') : ''}</td>
+      <td>
+        <div class="d-flex gap-2">
+          <button class="btn btn-outline-secondary btn-sm" data-chk="edit" data-id="${c.id}">Editar</button>
+          <button class="btn btn-outline-danger btn-sm" data-chk="del" data-id="${c.id}">Remover</button>
+        </div>
+      </td>`;
+    tbodyChecklists.appendChild(tr);
+  });
+
+  // Liga actions (delegação)
+  tbodyChecklists.querySelectorAll('[data-chk]').forEach(b => {
+    b.addEventListener('click', handleChecklistAction);
+  });
+}
+
+function handleChecklistAction(e) {
+  const id = e.currentTarget.getAttribute('data-id');
+  const act = e.currentTarget.getAttribute('data-chk');
+  const list = viaturaAtual.checklists || (viaturaAtual.checklists = []);
+  const c = list.find(x => x.id === id);
+
+  if (act === 'edit' && c) return openFormChecklist(c);
+
+  if (act === 'del' && c) {
+    confirmDelete(() => {
+      viaturaAtual.checklists = list.filter(x => x.id !== id);
+      saveDB();
+      renderChecklists();
+    }, `Remover o registo de <strong>${c.data}</strong>?`);
+  }
+}
+
+document.getElementById('btnAddChecklist').addEventListener('click', () => openFormChecklist());
+
+function openFormChecklist(c = null) {
+  const isEdit = !!c;
+  const title = isEdit ? 'Editar registo diário' : 'Novo registo diário';
+
+  // tenta pré-preencher kms com o último registo
+  const lastKms = (viaturaAtual.checklists || []).slice().sort((a,b)=>(b.data||'').localeCompare(a.data||''))[0]?.kms ?? '';
+
+  injectFormFields([
+    { label: 'Data', name: 'data', type: 'date', required: true, value: c?.data || todayISO() },
+    { label: 'Kms', name: 'kms', type: 'number', min: 0, value: c?.kms ?? lastKms },
+    { label: 'Limpeza', name: 'limpo', type: 'select', options: [
+      { value: 'sim', label: 'Limpo' },
+      { value: 'nao', label: 'Sujo' }], value: c?.limpo ? 'sim' : 'nao' },
+    { label: 'Observações', name: 'obs', type: 'text', value: c?.obs || '' },
+  ], title, (formData) => {
+    const payload = {
+      id: c?.id || cryptoRandom(),
+      data: formData.data || todayISO(),
+      kms: Math.max(0, parseInt(formData.kms || '0', 10)),
+      limpo: formData.limpo === 'sim',
+      obs: formData.obs?.trim() || ''
+    };
+
+    if (isEdit) Object.assign(c, payload);
+    else {
+      (viaturaAtual.checklists || (viaturaAtual.checklists = [])).push(payload);
+    }
+
+    saveDB();
+    renderChecklists();
+  });
+}
+
+
+    // =============================================================
+    // ========================= ARICAS ============================
+    // =============================================================
+    const tbodyAricas = document.getElementById('tbodyAricas');
+
+    function renderAricas() {
+  tbodyAricas.innerHTML = '';
+  const hoje = new Date();
+
+  DB.aricas.forEach((a, i) => {
+    const daysLeft = a.validade ? Math.ceil((new Date(a.validade) - hoje) / 86400000) : null;
+    let badge = '';
+    if (daysLeft !== null) {
+      if (daysLeft < 0) badge = '<span class="badge text-bg-danger ms-2">Expirada</span>';
+      else if (daysLeft <= 30) badge = '<span class="badge text-bg-warning ms-2">A expirar</span>';
+    }
+
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${i + 1}</td>
+      <td>${a.nome}</td>
+      <td>${a.local}</td>
+
+      <td class="d-none d-md-table-cell">
+        <input type="date" class="form-control form-control-sm"
+               value="${a.provaH || ''}" data-arica="provaH" data-id="${a.id}">
+      </td>
+
+      <td class="d-none d-md-table-cell">
+        <div class="d-flex align-items-center">
+          <input type="date" class="form-control form-control-sm"
+                 value="${a.validade || ''}" data-arica="validade" data-id="${a.id}">
+          ${badge}
+        </div>
+      </td>
+
+      <!-- Planeamento -->
+      <td>
+        <select class="form-select form-select-sm" data-arica="planStatus" data-id="${a.id}">
+          <option value="por_realizar" ${ (a.planStatus||'por_realizar')==='por_realizar'?'selected':''}>Por realizar</option>
+          <option value="realizado" ${a.planStatus==='realizado'?'selected':''}>Realizado</option>
+        </select>
+      </td>
+
+      <!-- Observações (visível ≥ lg) -->
+      <td class="d-none d-lg-table-cell">
+        <input type="text" class="form-control form-control-sm" placeholder="Observações"
+               value="${a.obs || ''}" data-arica="obs" data-id="${a.id}">
+      </td>
+
+      <!-- Estado -->
+      <td>
+        <select class="form-select form-select-sm" data-arica="estado" data-id="${a.id}">
+          <option value="operacional" ${a.estado==='operacional'?'selected':''}>Operacional</option>
+          <option value="inoperacional" ${a.estado==='inoperacional'?'selected':''}>Inoperacional</option>
+        </select>
+      </td>
+
+      <!-- BAR -->
+      <td>
+        <input type="text" class="form-control form-control-sm" placeholder="BAR"
+               value="${a.bar||''}" data-arica="bar" data-id="${a.id}" />
+      </td>
+
+      <!-- Ações -->
+      <td>
+        <div class="d-flex gap-2">
+          <button class="btn btn-outline-secondary btn-sm" data-arica="edit" data-id="${a.id}">Editar</button>
+          <button class="btn btn-outline-danger btn-sm" data-arica="del" data-id="${a.id}">Remover</button>
+        </div>
+      </td>`;
+    tbodyAricas.appendChild(tr);
+  });
+
+  // Botões Editar / Remover
+  tbodyAricas.querySelectorAll('[data-arica="edit"], [data-arica="del"]')
+    .forEach(b => b.addEventListener('click', handleAricaAction));
+
+  // Estado
+  tbodyAricas.querySelectorAll('select[data-arica="estado"]').forEach(sel => {
+    sel.addEventListener('change', (e) => {
+      const id = e.target.dataset.id;
+      const a = DB.aricas.find(x => x.id === id);
+      if (!a) return;
+      a.estado = e.target.value;
+      saveDB();
+      renderKPIs();
+    });
+  });
+
+  // BAR & Observações (guardam em change/blur)
+  const saveText = (e) => {
+    const id = e.target.dataset.id;
+    const key = e.target.dataset.arica; // 'bar' ou 'obs'
+    const a = DB.aricas.find(x => x.id === id);
+    if (!a) return;
+    a[key] = e.target.value;
+    saveDB();
+  };
+  tbodyAricas.querySelectorAll('input[data-arica="bar"], input[data-arica="obs"]').forEach(inp => {
+    inp.addEventListener('change', saveText);
+    inp.addEventListener('blur', saveText);
+  });
+
+  // Datas (provaH/validade)
+  tbodyAricas.querySelectorAll('input[data-arica="provaH"], input[data-arica="validade"]').forEach(inp => {
+    inp.addEventListener('change', (e) => {
+      const id = e.target.dataset.id;
+      const key = e.target.dataset.arica;
+      const a = DB.aricas.find(x => x.id === id);
+      if (!a) return;
+      a[key] = e.target.value; // yyyy-mm-dd
+      saveDB();
+      renderAricas(); // recalcula badge
+    });
+  });
+
+  // Planeamento (Por realizar/Realizado)
+  tbodyAricas.querySelectorAll('select[data-arica="planStatus"]').forEach(sel => {
+    sel.addEventListener('change', (e) => {
+      const id = e.target.dataset.id;
+      const a = DB.aricas.find(x => x.id === id);
+      if (!a) return;
+      a.planStatus = e.target.value;
+      saveDB();
+    });
+  });
+}
+
+
+    document.getElementById('btnAddArica').addEventListener('click', () => openFormArica());
+
+    function handleAricaAction(e) {
+      const id = e.currentTarget.getAttribute('data-id');
+      const act = e.currentTarget.getAttribute('data-arica');
+      const a = DB.aricas.find(x => x.id === id);
+      if (!a) return;
+      if (act === 'edit') return openFormArica(a);
+      if (act === 'del') return confirmDelete(() => {
+        DB.aricas = DB.aricas.filter(x => x.id !== id);
+        saveDB();
+        renderAricas();
+        renderKPIs();
+      }, `Remover a ARICA <strong>${a.nome}</strong>?`);
+    }
+
+    function openFormArica(a = null) {
+  const isEdit = !!a;
+  const title = isEdit ? 'Editar ARICA' : 'Adicionar ARICA';
+  injectFormFields([
+    { label: 'Designação', name: 'nome', type: 'text', required: true, value: a?.nome || '' },
+    { label: 'Localização', name: 'local', type: 'text', value: a?.local || '' },
+    { label: 'Estado', name: 'estado', type: 'select', options: [
+      { value: 'operacional', label: 'Operacional' },
+      { value: 'inoperacional', label: 'Inoperacional' }], value: a?.estado || 'operacional' },
+
+    { label: 'Data de prova hidráulica', name: 'provaH', type: 'date', value: a?.provaH || '' },
+    { label: 'Data de validade',        name: 'validade', type: 'date', value: a?.validade || '' },
+
+    { label: 'Planeamento', name: 'planStatus', type: 'select', options: [
+      { value: 'por_realizar', label: 'Por realizar' },
+      { value: 'realizado',    label: 'Realizado' }], value: a?.planStatus || 'por_realizar' },
+
+    { label: 'Observações', name: 'obs', type: 'text', value: a?.obs || '' },
+    { label: 'BAR', name: 'bar', type: 'text', value: a?.bar || '' },
+  ], title, (formData) => {
+    if (isEdit) { Object.assign(a, formData); }
+    else { DB.aricas.push({ id: cryptoRandom(), ...formData }); }
+    saveDB();
+    renderAricas();
+    renderKPIs();
+  });
+}
+
+
+    // =============================================================
+    // ====================== EXPORTAR / IMPRIMIR ===================
+    // =============================================================
+    document.getElementById('btnExportViaturas').addEventListener('click', () => {
+      const rowsV = DB.viaturas.map(v => ({ Nome: v.nome, Tipo: v.tipo, Matricula: v.matricula, Estado: v.estado }));
+      const rowsF = DB.viaturas.flatMap(v => (v.ferramentas || []).map(f => ({ Viatura: v.nome, Matricula: v.matricula, Ferramenta: f.nome, Qtd: f.qtd, Estado: f.estado })));
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rowsV), 'Viaturas');
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rowsF), 'Ferramentas');
+      XLSX.writeFile(wb, 'viaturas.xlsx');
+    });
+
+    document.getElementById('btnExportFerramentas').addEventListener('click', () => {
+      if (!viaturaAtual) return;
+      const rows = (viaturaAtual.ferramentas || []).map(f => ({ Viatura: viaturaAtual.nome, Ferramenta: f.nome, Qtd: f.qtd, Estado: f.estado }));
+      exportSheet(rows, `${viaturaAtual.nome}-ferramentas.xlsx`, 'Ferramentas');
+    });
+
+    document.getElementById('btnExportAricas').addEventListener('click', () => {
+     const rows = DB.aricas.map(a => ({
+  Designacao: a.nome,
+  Localizacao: a.local,
+  Estado: a.estado || '',
+  BAR: a.bar || '',
+  Prova_Hidraulica: a.provaH || '',
+  Validade: a.validade || '',
+  Planeamento: a.planStatus || '',
+  Observacoes: a.obs || ''
+}));
+exportSheet(rows, 'aricas.xlsx', 'ARICAS');
+
+    });
+
+    document.getElementById('btnPrint').addEventListener('click', () => {
+      const ps = sections.print; ps.innerHTML = '';
+      const clone = document.querySelector('main section:not(.d-none)')?.cloneNode(true) || document.querySelector('main').cloneNode(true);
+      ps.appendChild(clone); ps.classList.remove('d-none'); window.print(); ps.classList.add('d-none'); ps.innerHTML = '';
+    });
+
+    function exportSheet(rows, filename, sheetName) { const ws = XLSX.utils.json_to_sheet(rows); const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, sheetName); XLSX.writeFile(wb, filename); }
+
+    // =============================================================
+    // =============== MODAIS (FORM & CONFIRMAÇÃO) ==================
+    // =============================================================
+    const modalForm = new bootstrap.Modal(document.getElementById('modalForm'));
+    const modalConfirm = new bootstrap.Modal(document.getElementById('modalConfirm'));
+
+    function injectFormFields(fields, title, onSave) {
+      document.getElementById('modalFormTitle').textContent = title;
+      const form = document.getElementById('formGeneric'); form.innerHTML = '';
+      fields.forEach(f => {
+        const id = cryptoRandom(); const col = document.createElement('div'); col.className = 'col-12';
+        if (f.type === 'select') {
+          col.innerHTML = `
+            <label class="form-label" for="${id}">${f.label}</label>
+            <select class="form-select" id="${id}" name="${f.name}" ${f.required ? 'required' : ''}>
+              ${f.options.map(o => `<option value="${o.value}" ${o.value===f.value?'selected':''}>${o.label}</option>`).join('')}
+            </select>`;
+        } else {
+          col.innerHTML = `
+            <label class="form-label" for="${id}">${f.label}</label>
+            <input class="form-control" id="${id}" name="${f.name}" type="${f.type||'text'}" value="${f.value??''}" ${f.required ? 'required' : ''} ${f.min!=null?`min="${f.min}"`:''}/>`;
+        }
+        form.appendChild(col);
+      });
+
+      const saveBtn = document.getElementById('modalSave');
+      const handler = () => { const data = Object.fromEntries(new FormData(form).entries()); onSave(data); modalForm.hide(); saveBtn.removeEventListener('click', handler); };
+      saveBtn.addEventListener('click', handler); modalForm.show();
+    }
+
+    function confirmDelete(onYes, message = 'Tens a certeza?') {
+      document.getElementById('modalConfirmMsg').innerHTML = message;
+      const yesBtn = document.getElementById('modalConfirmYes');
+      const handler = () => { onYes(); modalConfirm.hide(); yesBtn.removeEventListener('click', handler); };
+      yesBtn.addEventListener('click', handler); modalConfirm.show();
+    }
+
+    // =============================================================
+    // ========================= EXPORTS UI =========================
+    // =============================================================
+    document.getElementById('btnAddFerramenta').disabled = true;
+    const obs = new MutationObserver(() => { document.getElementById('btnAddFerramenta').disabled = sections.viatura.classList.contains('d-none'); });
+    obs.observe(sections.viatura, { attributes: true, attributeFilter: ['class'] });
+
+    document.getElementById('btnExportChecklists').addEventListener('click', () => {
+  if (!viaturaAtual) return;
+  const rows = (viaturaAtual.checklists || []).map(c => ({
+    Viatura: viaturaAtual.nome,
+    Data: c.data || '',
+    Kms: c.kms ?? '',
+    Limpo: c.limpo ? 'Sim' : 'Não',
+    Observacoes: c.obs || ''
+  }));
+  exportSheet(rows, `${viaturaAtual.nome}-checklists.xlsx`, 'Checklists');
+});
+
+
+    // =============================================================
+    // ============================ INIT ============================
+    // =============================================================
+    renderKPIs();
+    goView('home');
+  </script>
+</body>
+</html>

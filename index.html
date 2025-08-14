@@ -1211,7 +1211,7 @@
     const deviceId = localStorage.getItem(DEVICE_ID_KEY) || (localStorage.setItem(DEVICE_ID_KEY, cryptoRandom()), localStorage.getItem(DEVICE_ID_KEY));
     let fb = { app:null, auth:null, fs:null, user:null, orgRef:null, unsub:null };
     let cloudReady = false;
-    let lastLocalSave = Date.now();
+    let lastLocalSave = 0;
     let pushing = false;
     let cloudTimer = null;
 
@@ -1240,13 +1240,19 @@
 
         // Listener em tempo-real
         fb.unsub = fb.orgRef.onSnapshot(snap => {
-          const data = snap.data();
-          if (!data || !data.db) return;
+    if (!snap.exists) {
+        pushCloud('init');
+        return;
+    }
 
-          const remoteUpdated = data.updatedAt || 0;
-          if (remoteUpdated > lastLocalSave && !pushing) {
-            DB = data.db;
-            _localSaveDB(); // persiste local sem novo push
+    const data = snap.data();
+    if (!data || !data.db) return;
+
+    const ts = data.updatedAt;
+    const remoteUpdated = ts && ts.toMillis ? ts.toMillis() : (ts || 0);
+    if (remoteUpdated > lastLocalSave && !pushing) {
+        DB = data.db;
+        _localSaveDB(); // persiste local sem novo push
             renderKPIs();
             // refresca a vista visível
             if (!sections.home.classList.contains('d-none')) renderKPIs();
@@ -1274,7 +1280,7 @@
         lastLocalSave = Date.now();
         await fb.orgRef.set({
           db: DB,
-          updatedAt: lastLocalSave,
+          updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
           by: deviceId,
           tag
         }, { merge: true });

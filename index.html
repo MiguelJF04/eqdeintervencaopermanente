@@ -1274,20 +1274,103 @@
     }
 
     async function pushCloud(tag = 'save') {
-      if (!fb.orgRef) return;
-      try {
+    if (!fb.orgRef) return;
+    try {
         pushing = true;
         lastLocalSave = Date.now();
+
+        // Se for inicialização, criar DB com todos os dados de exemplo
+        if (tag === 'init') {
+            DB = {
+                aricas: [
+                    {
+                        bar: "",
+                        estado: "operacional",
+                        id: "nwl597urxnomebi2bmp",
+                        local: "Parque A",
+                        nome: "ARICA Norte",
+                        provaH: "",
+                        validade: ""
+                    },
+                    {
+                        bar: "",
+                        estado: "operacional",
+                        id: "3kiw1wg2u6omebi2bmp",
+                        local: "Parque B",
+                        nome: "ARICA Sul",
+                        provaH: "",
+                        validade: ""
+                    }
+                ],
+                planeamento: [
+                    {
+                        createdAt: 1755182032225,
+                        estado: "por_realizar",
+                        id: "s2ujog433vamebi2bmp",
+                        texto: "Verificação mensal dos extintores"
+                    }
+                ],
+                viaturas: [
+                    {
+                        checklists: { estado: "operacional" },
+                        ferramentas: [
+                            {
+                                estado: "ok",
+                                id: "as9rsmif0ubmebi2bmp",
+                                nome: "Maca",
+                                qtd: 1
+                            },
+                            {
+                                estado: "ok",
+                                id: "woss4m95h4imebi2bmp",
+                                nome: "Extintor 6kg",
+                                qtd: 2
+                            },
+                            {
+                                estado: "danificado",
+                                id: "s5vxb88ldhmebi2bmp",
+                                nome: "Lanterna",
+                                qtd: 3
+                            }
+                        ],
+                        id: "fwes1eae67mebi2bmp",
+                        matricula: "AA-00-AA",
+                        nome: "VUCI 01",
+                        tipo: "pesada"
+                    },
+                    {
+                        checklists: { estado: "operacional" },
+                        ferramentas: {
+                            id: "5beu73pqsnfmebi2bmp",
+                            matricula: "BB-11-BB",
+                            nome: "ABSC 02",
+                            tipo: "ligeira"
+                        }
+                    },
+                    {
+                        checklists: { estado: "inoperacional" },
+                        ferramentas: {
+                            id: "0ah2wbszkbzsmebi2bmp",
+                            matricula: "CC-22-CC",
+                            nome: "VTU 03",
+                            tipo: "ligeira"
+                        }
+                    }
+                ]
+            };
+        }
+
         await fb.orgRef.set({
-          db: DB,
-          updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
-          by: deviceId,
-          tag
+            db: DB,
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+            by: deviceId,
+            tag
         }, { merge: true });
-      } finally {
+
+    } finally {
         setTimeout(() => { pushing = false; }, 150);
-      }
     }
+}
 
     // =============================================================
     // ============================ INIT ============================
